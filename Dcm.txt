@@ -1,0 +1,75 @@
+import com.documentum.fc.client.*;
+import com.documentum.fc.common.*;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.*;
+
+import java.io.FileOutputStream;
+import java.io.IOException;
+
+public class DocumentumExcelExportExample {
+    public static void main(String[] args) {
+        // Connection parameters
+        String docbase = "your_docbase_name";
+        String username = "your_username";
+        String password = "your_password";
+
+        // Create a new session manager
+        IDfClientX clientX = new DfClientX();
+        IDfClient client = clientX.getLocalClient();
+        IDfSessionManager sessionManager = client.newSessionManager();
+
+        try {
+            // Set the session manager's identity
+            IDfLoginInfo loginInfo = clientX.getLoginInfo();
+            loginInfo.setUser(username);
+            loginInfo.setPassword(password);
+            sessionManager.setIdentity(docbase, loginInfo);
+
+            // Get the session for the specified docbase
+            IDfSession session = sessionManager.getSession(docbase);
+
+            // Create the Excel workbook and sheet
+            Workbook workbook = new XSSFWorkbook();
+            Sheet sheet = workbook.createSheet("DM Users");
+
+            // Execute the DQL query
+            String dqlQuery = "select * from dm_user";
+            IDfQuery query = new DfQuery(dqlQuery);
+            IDfCollection collection = query.execute(session, IDfQuery.DF_READ_QUERY);
+
+            // Get the column names
+            IDfTypedObject firstRow = collection.getTypedObject();
+            int numColumns = firstRow.getAttrCount();
+            Row headerRow = sheet.createRow(0);
+            for (int i = 0; i < numColumns; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(firstRow.getAttr(i).getName());
+            }
+
+            // Get the row data
+            int rowIndex = 1;
+            while (collection.next()) {
+                Row dataRow = sheet.createRow(rowIndex++);
+                for (int i = 0; i < numColumns; i++) {
+                    Cell cell = dataRow.createCell(i);
+                    cell.setCellValue(collection.getTypedObject().getRepeatingString(i, 0));
+                }
+            }
+
+            // Write the workbook to an Excel file
+            FileOutputStream fileOutputStream = new FileOutputStream("dm_users.xlsx");
+            workbook.write(fileOutputStream);
+            fileOutputStream.close();
+
+            // Release the collection and session when you're done
+            collection.close();
+            sessionManager.release(session);
+        } catch (DfException | IOException e) {
+            // Handle any exceptions
+            e.printStackTrace();
+        } finally {
+            // Release the session manager
+            sessionManager.clearIdentities();
+        }
+    }
+}
